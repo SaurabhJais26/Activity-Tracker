@@ -6,7 +6,7 @@ import requests
 import re
 import pygetwindow as gw
 
-appsToTrack = ["Word", "Excel", "Outlook", "PowerPoint", "Calendar", ".pdf", "Adobe Acrobat Reader (64-bit)"]
+appsToTrack = ["Word", "Excel", "Outlook", "PowerPoint", "Calendar", "Adobe Acrobat Reader"]
 
 class ActivityTrackerApp:
     def __init__(self, root, username):
@@ -19,6 +19,11 @@ class ActivityTrackerApp:
         self.tracked_data_text = tk.Text(root, wrap=tk.WORD, font=('Arial', 12), spacing1=3, spacing2=2, spacing3=2)
         self.tracked_data_text.pack(pady=(0, 10), padx=10, fill=tk.BOTH, expand=True)
         self.tracked_data_text.pack_propagate(0)  # Prevent the widget from affecting its parent's size
+
+        # Add a vertical scrollbar
+        self.scrollbar = tk.Scrollbar(root, command=self.tracked_data_text.yview)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tracked_data_text.config(yscrollcommand=self.scrollbar.set)
 
         # Set the initial tracked data
         self.tracked_data = "Activity Tracker is running...\n"
@@ -36,12 +41,15 @@ class ActivityTrackerApp:
         self.start_time = datetime.now()
 
     def extract_application_name(self, window_title):
+        if "Adobe Acrobat Reader" in window_title:
+            return "Adobe Acrobat Reader"
         # Use regular expression to split by '-', '/', '\', or '|'
         parts = re.split(r'[-/\\|]', window_title)
         # Take the last part as the application name
         return parts[-1].strip() if parts else window_title.strip()
 
     def post_data_to_api(self, data):
+        print("API Data:", data)
         api_url = "http://125.63.88.147:7401/api/PostData/InsertData"
         headers = {
             "Content-Type": "application/json",
@@ -67,6 +75,7 @@ class ActivityTrackerApp:
                 active_window = self.get_active_window_title()
 
                 if active_window and active_window != self.last_active_window:
+                    print("Current App Name:", active_window)
                     tracked_data = f"{self.window_count}. Active Window: {active_window}\n"
 
                     # Set the tracked data in the instance variable
@@ -78,6 +87,7 @@ class ActivityTrackerApp:
 
                     # Post data to API
                     app_name = self.extract_application_name(active_window)
+                    # print("Current App Name:", app_name)  
                     if app_name and any(app in app_name for app in appsToTrack):
                         self.post_data_to_api({
                             "applicationName": app_name,
@@ -91,11 +101,17 @@ class ActivityTrackerApp:
             pass
 
     def update_tracked_data(self):
+        # Get the current scroll position
+        scroll_position = self.tracked_data_text.yview()[0]
+
         # Update the text widget with the tracked data
         self.tracked_data_text.config(state=tk.NORMAL)
         self.tracked_data_text.delete(1.0, tk.END)
         self.tracked_data_text.insert(tk.END, self.tracked_data)
         self.tracked_data_text.config(state=tk.DISABLED)
+
+        # Set the scroll position back to where it was
+        self.tracked_data_text.yview_moveto(scroll_position)
 
         # Schedule the update on the main thread again
         self.root.after(1000, self.update_tracked_data)
